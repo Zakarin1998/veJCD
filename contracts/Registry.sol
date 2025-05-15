@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.15;
-import "./interfaces/IVotingYFI.sol";
+import "./interfaces/IVotingJCD.sol";
 import "./interfaces/IGaugeFactory.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /** @title Voter
-    @notice veYFI holders will vote for gauge allocation to vault tokens.
+    @notice veJCD holders will vote for gauge allocation to vault tokens.
  */
 
 contract Registry is Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
     address public veToken; // the ve token that governs these contracts
-    address public immutable yfi; // reward token
-    address public immutable veYfiRewardPool;
+    address public immutable jcd; // reward token
+    address public immutable veJcdRewardPool;
     address public immutable gaugefactory;
 
     EnumerableSet.AddressSet private _vaults;
@@ -28,27 +28,27 @@ contract Registry is Ownable {
 
     constructor(
         address _ve,
-        address _yfi,
+        address _jcd,
         address _gaugefactory,
-        address _veYfiRewardPool
+        address _veJcdRewardPool
     ) {
         require(_ve != address(0x0), "_ve 0x0 address");
-        require(_yfi != address(0x0), "_yfi 0x0 address");
+        require(_jcd != address(0x0), "_jcd 0x0 address");
         require(_gaugefactory != address(0x0), "_gaugefactory 0x0 address");
         require(
-            _veYfiRewardPool != address(0x0),
-            "_veYfiRewardPool 0x0 address"
+            _veJcdRewardPool != address(0x0),
+            "_veJcdRewardPool 0x0 address"
         );
 
         veToken = _ve;
-        yfi = _yfi;
+        jcd = _jcd;
         gaugefactory = _gaugefactory;
-        veYfiRewardPool = _veYfiRewardPool;
+        veJcdRewardPool = _veJcdRewardPool;
     }
 
     /**
-    @notice Set the veYFI token address.
-    @param _veToken the new address of the veYFI token
+    @notice Set the veJCD token address.
+    @param _veToken the new address of the veJCD token
     */
     function setVe(address _veToken) external onlyOwner {
         veToken = _veToken;

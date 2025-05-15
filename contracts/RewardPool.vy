@@ -1,12 +1,12 @@
 # @version 0.3.7
 """
-@title YFI Reward Pool
+@title JCD Reward Pool
 @author Curve Finance, Yearn Finance
 @license MIT
 """
 from vyper.interfaces import ERC20
 
-interface VotingYFI:
+interface VotingJCD:
     def epoch(add: address) -> uint256: view
     def point_history(addr: address, loc: uint256) -> Point: view
     def checkpoint(): nonpayable
@@ -16,7 +16,7 @@ interface VotingYFI:
     def find_epoch_by_timestamp(user: address, ts: uint256) -> uint256: view 
 
 event Initialized:
-    veyfi: VotingYFI
+    vejcd: VotingJCD
     start_time: uint256
 
 event CheckpointToken:
@@ -52,8 +52,8 @@ struct LockedBalance:
 WEEK: constant(uint256) = 7 * 86400
 TOKEN_CHECKPOINT_DEADLINE: constant(uint256) = 86400
 
-YFI: immutable(ERC20)
-VEYFI: immutable(VotingYFI)
+JCD: immutable(ERC20)
+VEJCD: immutable(VotingJCD)
 
 start_time: public(uint256)
 time_cursor: public(uint256)
@@ -68,25 +68,25 @@ ve_supply: public(HashMap[uint256, uint256])
 
 
 @external
-def __init__(veyfi: VotingYFI, start_time: uint256):
+def __init__(vejcd: VotingJCD, start_time: uint256):
     """
     @notice Contract constructor
-    @param veyfi VotingYFI contract address
+    @param vejcd VotingJCD contract address
     @param start_time Epoch time for fee distribution to start
     """
     t: uint256 = start_time / WEEK * WEEK
     self.start_time = t
     self.last_token_time = t
     self.time_cursor = t
-    VEYFI = veyfi
-    YFI = VEYFI.token()
+    VEJCD = vejcd
+    JCD = VEJCD.token()
 
-    log Initialized(veyfi, start_time)
+    log Initialized(vejcd, start_time)
 
 
 @internal
 def _checkpoint_token():
-    token_balance: uint256 = YFI.balanceOf(self)
+    token_balance: uint256 = JCD.balanceOf(self)
     to_distribute: uint256 = token_balance - self.token_last_balance
     # @dev gas optimization
     if to_distribute == 0:
@@ -133,14 +133,14 @@ def checkpoint_token():
 def _checkpoint_total_supply():
     t: uint256 = self.time_cursor
     rounded_timestamp: uint256 = block.timestamp / WEEK * WEEK
-    VEYFI.checkpoint()
+    VEJCD.checkpoint()
 
     for i in range(40):
         if t > rounded_timestamp:
             break
         else:
-            epoch: uint256 = VEYFI.find_epoch_by_timestamp(VEYFI.address, t)
-            pt: Point = VEYFI.point_history(VEYFI.address, epoch)
+            epoch: uint256 = VEJCD.find_epoch_by_timestamp(VEJCD.address, t)
+            pt: Point = VEJCD.point_history(VEJCD.address, epoch)
             dt: int128 = 0
             if t > pt.ts:
                 # If the point is at 0 epoch, it can actually be earlier than the first deposit
@@ -155,7 +155,7 @@ def _checkpoint_total_supply():
 @external
 def checkpoint_total_supply():
     """
-    @notice Update the veYFI total supply checkpoint
+    @notice Update the veJCD total supply checkpoint
     @dev The checkpoint is also updated by the first claimant each
          new epoch week. This function may be called independently
          of a claim, to reduce claiming gas costs.
@@ -167,7 +167,7 @@ def checkpoint_total_supply():
 def _claim(addr: address, last_token_time: uint256) -> uint256:
     to_distribute: uint256 = 0
 
-    max_user_epoch: uint256 = VEYFI.epoch(addr)
+    max_user_epoch: uint256 = VEJCD.epoch(addr)
     _start_time: uint256 = self.start_time
 
     if max_user_epoch == 0:
@@ -177,7 +177,7 @@ def _claim(addr: address, last_token_time: uint256) -> uint256:
     week_cursor: uint256 = self.time_cursor_of[addr]
 
     if week_cursor == 0:
-        user_point: Point = VEYFI.point_history(addr, 1)
+        user_point: Point = VEJCD.point_history(addr, 1)
         week_cursor = (user_point.ts + WEEK - 1) / WEEK * WEEK
 
     if week_cursor >= last_token_time:
@@ -190,7 +190,7 @@ def _claim(addr: address, last_token_time: uint256) -> uint256:
     for i in range(50):
         if week_cursor >= last_token_time:
             break
-        balance_of: uint256 = VEYFI.balanceOf(addr, week_cursor)
+        balance_of: uint256 = VEJCD.balanceOf(addr, week_cursor)
         if balance_of == 0:
             break
         to_distribute += balance_of * self.tokens_per_week[week_cursor] / self.ve_supply[week_cursor]
@@ -209,8 +209,8 @@ def claim(user: address = msg.sender, relock: bool = False) -> uint256:
     """
     @notice Claim fees for a user
     @dev 
-        Each call to claim looks at a maximum of 50 user veYFI points.
-        For accounts with many veYFI related actions, this function
+        Each call to claim looks at a maximum of 50 user veJCD points.
+        For accounts with many veJCD related actions, this function
         may need to be called more than once to claim all available
         fees. In the `Claimed` event that fires, if `claim_epoch` is
         less than `max_epoch`, the account may claim again.
@@ -233,10 +233,10 @@ def claim(user: address = msg.sender, relock: bool = False) -> uint256:
     if amount != 0:
         # you can only relock for yourself
         if relock and (msg.sender == user or self.allowed_to_relock[user][msg.sender]):
-            YFI.approve(VEYFI.address, amount)
-            VEYFI.modify_lock(amount, 0, user)
+            JCD.approve(VEJCD.address, amount)
+            VEJCD.modify_lock(amount, 0, user)
         else:
-            assert YFI.transfer(user, amount)
+            assert JCD.transfer(user, amount)
         self.token_last_balance -= amount
 
     return amount
@@ -245,15 +245,15 @@ def claim(user: address = msg.sender, relock: bool = False) -> uint256:
 @external
 def burn(amount: uint256 = max_value(uint256)) -> bool:
     """
-    @notice Receive YFI into the contract and trigger a token checkpoint
+    @notice Receive JCD into the contract and trigger a token checkpoint
     @param amount Amount of tokens to pull [default: allowance]
     @return bool success
     """
     _amount: uint256 = amount
     if _amount == max_value(uint256):
-        _amount = YFI.allowance(msg.sender, self)
+        _amount = JCD.allowance(msg.sender, self)
     if _amount > 0:
-        YFI.transferFrom(msg.sender, self, _amount)
+        JCD.transferFrom(msg.sender, self, _amount)
         log RewardReceived(msg.sender, _amount)
         if block.timestamp > self.last_token_time + TOKEN_CHECKPOINT_DEADLINE:
             self._checkpoint_token()
@@ -276,10 +276,10 @@ def toggle_allowed_to_relock(user: address) -> bool:
 @view
 @external
 def token() -> ERC20:
-    return YFI
+    return JCD
 
 
 @view
 @external
-def veyfi() -> VotingYFI:
-    return VEYFI
+def vejcd() -> VotingJCD:
+    return VEJCD

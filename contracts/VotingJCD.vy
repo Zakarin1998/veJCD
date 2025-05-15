@@ -1,6 +1,6 @@
 # @version 0.3.7
 """
-@title Voting YFI
+@title Voting JCD
 @author Curve Finance, Yearn Finance
 @license MIT
 @notice
@@ -60,7 +60,7 @@ event Initialized:
     token: ERC20
     reward_pool: RewardPool
 
-YFI: immutable(ERC20)
+JCD: immutable(ERC20)
 REWARD_POOL: immutable(RewardPool)
 
 DAY: constant(uint256) = 86400
@@ -82,10 +82,10 @@ slope_changes: public(HashMap[address, HashMap[uint256, int128]])  # time -> sig
 def __init__(token: ERC20, reward_pool: RewardPool):
     """
     @notice Contract constructor
-    @param token YFI token address
+    @param token JCD token address
     @param reward_pool Pool for early exit penalties
     """
-    YFI = token
+    JCD = token
     REWARD_POOL = reward_pool
     self.point_history[self][0].blk = block.number
     self.point_history[self][0].ts = block.timestamp
@@ -251,11 +251,11 @@ def modify_lock(amount: uint256, unlock_time: uint256, user: address = msg.sende
     """
     @notice Create or modify a lock for a user. Support deposits on behalf of a user.
     @dev
-        Minimum deposit to create a lock is 1 YFI.
+        Minimum deposit to create a lock is 1 JCD.
         You can lock for longer than 4 years, but less than 10 years, the max voting power is capped at 4 years.
         You can only increase lock duration if it has less than 4 years remaining.
         You can decrease lock duration if it has more than 4 years remaining.
-    @param amount YFI amount to add to a lock. 0 to not modify.
+    @param amount JCD amount to add to a lock. 0 to not modify.
     @param unlock_time Unix timestamp when the lock ends, must be in the future. 0 to not modify.
     @param user A user to deposit to. If different from msg.sender, unlock_time has no effect
     """
@@ -279,7 +279,7 @@ def modify_lock(amount: uint256, unlock_time: uint256, user: address = msg.sende
     # create lock
     if old_lock.amount == 0 and old_lock.end == 0:
         assert msg.sender == user  # dev: you can only create a lock for yourself
-        assert amount >= 10 ** 18  # dev: minimum amount is 1 YFI
+        assert amount >= 10 ** 18  # dev: minimum amount is 1 JCD
         assert unlock_week != 0  # dev: must specify unlock time in the future
     # modify lock
     else:
@@ -292,7 +292,7 @@ def modify_lock(amount: uint256, unlock_time: uint256, user: address = msg.sende
     self._checkpoint(user, old_lock, new_lock)
 
     if amount > 0:
-        assert YFI.transferFrom(msg.sender, self, amount)
+        assert JCD.transferFrom(msg.sender, self, amount)
 
     log Supply(supply_before, supply_before + amount, block.timestamp)
     log ModifyLock(msg.sender, user, new_lock.amount, new_lock.end, block.timestamp)
@@ -328,10 +328,10 @@ def withdraw() -> Withdrawn:
 
     self._checkpoint(msg.sender, old_locked, zero_locked)
 
-    assert YFI.transfer(msg.sender, old_locked.amount - penalty)
+    assert JCD.transfer(msg.sender, old_locked.amount - penalty)
     
     if penalty > 0:
-        assert YFI.approve(REWARD_POOL.address, penalty)
+        assert JCD.approve(REWARD_POOL.address, penalty)
         assert REWARD_POOL.burn(penalty)
 
         log Penalty(msg.sender, penalty, block.timestamp)
@@ -529,7 +529,7 @@ def totalSupplyAt(height: uint256) -> uint256:
 @view
 @external
 def token() -> ERC20:
-    return YFI
+    return JCD
 
 
 @view
@@ -541,13 +541,13 @@ def reward_pool() -> RewardPool:
 @view
 @external
 def name() -> String[10]:
-    return "Voting YFI"
+    return "Voting JCD"
 
 
 @view
 @external
 def symbol() -> String[5]:
-    return "veYFI"
+    return "veJCD"
 
 
 @view

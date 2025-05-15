@@ -17,21 +17,21 @@ def cli():
 @cli.command(cls=NetworkBoundCommand)
 @network_option()
 @account_option()
-def deploy_ve_yfi(network, account):
+def deploy_ve_jcd(network, account):
     now = datetime.now()
-    yfi = "0x6bD8a96197bfe16a2BA8e492318CcbA655A74077"  # Testnet
-    # deploy veYFI
+    jcd = "0x0Ed024d39d55e486573EE32e583bC37Eb5A6271f"  # Mainnet
+    # deploy veJCD
     reward_pool_address = to_checksum_address(
         generate_contract_address(to_canonical_address(str(account)), account.nonce + 1)
     )
-    ve_yfi = account.deploy(
-        project.VotingYFI, yfi, reward_pool_address, required_confirmations=0
+    ve_jcd = account.deploy(
+        project.VotingJCD, jcd, reward_pool_address, required_confirmations=0
     )
     start_time = (
         int(datetime.timestamp(now)) + 7 * 3600 * 24
     )  # MUST offset by a week otherwise token distributed are lost since no lock has been made yet.
     reward_pool = account.deploy(
-        project.RewardPool, ve_yfi, start_time, required_confirmations=0
+        project.RewardPool, ve_jcd, start_time, required_confirmations=0
     )
     print(reward_pool)
     print(reward_pool_address)

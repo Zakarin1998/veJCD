@@ -5,16 +5,16 @@ from vyper.interfaces import ERC20
 interface AggregatorV3Interface:
     def latestRoundData() -> (uint80, int256, uint256, uint256, uint80): view
 
-interface IDYFI:
+interface IDJCD:
     def burn(owner: address, amount: uint256): nonpayable
 
 UNIT: constant(uint256) = 10**18
 SLIPPAGE_TOLERANCE: constant(uint256) = 3
 SLIPPAGE_DENOMINATOR: constant(uint256) = 1000
 
-DYFI: immutable(IDYFI)
-YFI: immutable(ERC20)
-VEYFI: immutable(ERC20)
+DJCD: immutable(IDJCD)
+JCD: immutable(ERC20)
+VEJCD: immutable(ERC20)
 PRICE_FEED: immutable(AggregatorV3Interface)
 
 # @dev Returns the address of the current owner.
@@ -30,7 +30,7 @@ packed_scaling_factor: uint256
 
 # @dev Emitted when contract is killed
 event Killed:
-    yfi_recovered: uint256
+    jcd_recovered: uint256
 
 event Sweep:
     token: indexed(address)
@@ -96,13 +96,13 @@ A11: constant(int256) = 1_064_49_445_891_785_942_956
 
 @external
 def __init__(
-    yfi: address, d_yfi: address, ve_yfi: address, owner: address, 
+    jcd: address, d_jcd: address, ve_jcd: address, owner: address, 
     price_feed: address, scaling_factor: uint256,
 ):
     assert scaling_factor >= UNIT and scaling_factor <= 12 * UNIT
-    YFI = ERC20(yfi)
-    DYFI = IDYFI(d_yfi)
-    VEYFI = ERC20(ve_yfi)
+    JCD = ERC20(jcd)
+    DJCD = IDJCD(d_jcd)
+    VEJCD = ERC20(ve_jcd)
     PRICE_FEED = AggregatorV3Interface(price_feed)
     self._transfer_ownership(owner)
     self.payee = owner
@@ -113,21 +113,21 @@ def __init__(
 @external
 def redeem(amount: uint256, recipient: address = msg.sender) -> uint256:
     """
-    @notice Redeem your dYFI for YFI using ETH.
+    @notice Redeem your dJCD for JCD using ETH.
     @dev Redemption tolerates a 0.3% negative or positive slippage.
-    @param amount amount of dYFI to spend
-    @param recipient of the exercised YFI
+    @param amount amount of dJCD to spend
+    @param recipient of the exercised JCD
     """
     self._check_killed()
-    assert YFI.balanceOf(self) >= amount, "not enough YFI"
+    assert JCD.balanceOf(self) >= amount, "not enough JCD"
     eth_required: uint256 = self._eth_required(amount)
     assert eth_required > 0
     tolerance: uint256 = eth_required * SLIPPAGE_TOLERANCE / SLIPPAGE_DENOMINATOR
     if msg.value < (eth_required - tolerance) or msg.value > (eth_required + tolerance):
         raise "price out of tolerance"
-    DYFI.burn(msg.sender, amount)
+    DJCD.burn(msg.sender, amount)
     raw_call(self.payee, b"", value=msg.value)
-    YFI.transfer(recipient, amount)
+    JCD.transfer(recipient, amount)
     return amount
 
 
@@ -135,11 +135,11 @@ def redeem(amount: uint256, recipient: address = msg.sender) -> uint256:
 @view
 def discount() -> uint256:
     """
-    @notice Get the current dYFI redemption discount
+    @notice Get the current dJCD redemption discount
     @return Redemption discount (18 decimals)
     @dev 
         Discount formula is `1/(1 + 10 e^(4.7(s*x - 1)))`,
-        with `x = veyfi supply / yfi supply`
+        with `x = vejcd supply / jcd supply`
     """
     return self._discount()
 
@@ -147,9 +147,9 @@ def discount() -> uint256:
 @internal
 @view
 def _discount() -> uint256:
-    yfi_supply: uint256 = YFI.totalSupply()
-    veyfi_supply: uint256 = VEYFI.totalSupply()
-    x: int256 = convert(veyfi_supply * UNIT / yfi_supply, int256)
+    jcd_supply: uint256 = JCD.totalSupply()
+    vejcd_supply: uint256 = VEJCD.totalSupply()
+    x: int256 = convert(vejcd_supply * UNIT / jcd_supply, int256)
     x = self._exp(47 * (self._scaling_factor()[0] * x / E18 - E18) / 10)
     return convert(E18 * E18 / (E18 + 10 * x), uint256)
 
@@ -158,8 +158,8 @@ def _discount() -> uint256:
 @view
 def eth_required(amount: uint256) -> uint256:
     """
-    @notice Estimate the required amount of ETH to redeem the amount of dYFI for YFI
-    @param amount Amount of dYFI
+    @notice Estimate the required amount of ETH to redeem the amount of dJCD for JCD
+    @param amount Amount of dJCD
     @return Amount of ETH required
     """
     return self._eth_required(amount)
@@ -175,8 +175,8 @@ def _eth_required(amount: uint256) -> uint256:
 @view
 def get_latest_price() -> uint256:
     """
-    @notice Get the latest price of YFI in ETH
-    @return Price of YFI in ETH (18 decimals)
+    @notice Get the latest price of JCD in ETH
+    @return Price of JCD in ETH (18 decimals)
     """
     return self._get_latest_price()
 
@@ -283,15 +283,15 @@ def stop_ramp():
 @external
 def kill():
     """
-    @dev stop the contract from being used and reclaim YFI
+    @dev stop the contract from being used and reclaim JCD
     """
     self._check_killed()
     self._check_owner()
     self.killed = True
-    yfi_balance: uint256 = YFI.balanceOf(self)
-    YFI.transfer(self.owner, yfi_balance)
+    jcd_balance: uint256 = JCD.balanceOf(self)
+    JCD.transfer(self.owner, jcd_balance)
 
-    log Killed(yfi_balance)
+    log Killed(jcd_balance)
 
 @internal
 def _check_killed():
@@ -302,7 +302,7 @@ def _check_killed():
 
 @external
 def sweep(token: address) -> uint256:
-    assert self.killed or token != YFI.address, "protected token"
+    assert self.killed or token != JCD.address, "protected token"
     self._check_owner()
     amount: uint256 = 0
     if token == empty(address):

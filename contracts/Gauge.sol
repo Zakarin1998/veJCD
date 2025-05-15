@@ -9,12 +9,12 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./interfaces/IGauge.sol";
 import "./BaseGauge.sol";
-import "./interfaces/IVotingYFI.sol";
-import "./interfaces/IDYfiRewardPool.sol";
+import "./interfaces/IVotingJCD.sol";
+import "./interfaces/IDJcdRewardPool.sol";
 
-/** @title  Gauge stake vault token get YFI rewards
+/** @title  Gauge stake vault token get JCD rewards
     @notice Deposit your vault token (one gauge per vault).
-    YFI are paid based on the number of vault tokens, the veYFI balance, and the duration of the lock.
+    JCD are paid based on the number of vault tokens, the veJCD balance, and the duration of the lock.
     @dev this contract is used behind multiple delegate proxies.
  */
 
@@ -35,11 +35,11 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
     uint256 public constant BOOST_DENOMINATOR = 10;
 
     IERC20 public asset;
-    //// @notice veYFI
-    address public immutable VEYFI;
-    //// @notice the veYFI YFI reward pool, penalty are sent to this contract.
-    address public immutable VE_YFI_POOL;
-    //// @notice a copy of the veYFI max lock duration
+    //// @notice veJCD
+    address public immutable VEJCD;
+    //// @notice the veJCD JCD reward pool, penalty are sent to this contract.
+    address public immutable VE_JCD_POOL;
+    //// @notice a copy of the veJCD max lock duration
     uint256 public constant PRECISION_FACTOR = 10 ** 18;
     //// @notice Penalty does not apply for locks expiring after 3y11m
 
@@ -54,15 +54,15 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
     event RecipientUpdated(address indexed account, address indexed recipient);
 
     constructor(
-        address _veYfi,
-        address _dYfi,
-        address _veYfiDYfiPool
-    ) BaseGauge(_dYfi) {
-        require(_veYfi != address(0x0), "_asset 0x0 address");
-        require(_veYfiDYfiPool != address(0x0), "_asset 0x0 address");
+        address _veJcd,
+        address _dJcd,
+        address _veJcdDJcdPool
+    ) BaseGauge(_dJcd) {
+        require(_veJcd != address(0x0), "_asset 0x0 address");
+        require(_veJcdDJcdPool != address(0x0), "_asset 0x0 address");
 
-        VEYFI = _veYfi;
-        VE_YFI_POOL = _veYfiDYfiPool;
+        VEJCD = _veJcd;
+        VE_JCD_POOL = _veJcdDJcdPool;
     }
 
     /** @notice initialize the contract
@@ -157,7 +157,7 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
 
                 rewards[_account] += newEarning;
                 uint256 penalty = maxEarning - newEarning;
-                _transferVeYfiORewards(penalty);
+                _transferVeJcdORewards(penalty);
                 emit TransferredPenalty(_account, penalty);
             }
             userRewardPerTokenPaid[_account] = rewardPerTokenStored;
@@ -249,7 +249,7 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
     }
 
     /** @notice
-     *   Calculates the boosted balance of based on veYFI balance.
+     *   Calculates the boosted balance of based on veJCD balance.
      *  @dev
      *   This function expects this._totalAssets to be up to date.
      *  @return
@@ -263,7 +263,7 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
     }
 
     /** @notice
-     *   Calculates the boosted balance of based on veYFI balance.
+     *   Calculates the boosted balance of based on veJCD balance.
      *  @dev
      *    This function expects the account's _balances[_account].realBalance
      *    to be up to date.
@@ -280,9 +280,9 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
 
     /** @notice
      *   Calculates the boosted balance of an account based on its gauge stake
-     *   proportion & veYFI lock proportion.
+     *   proportion & veJCD lock proportion.
      *  @dev This function expects this._totalAssets to be up to date.
-     *  @param _account The account whose veYFI lock should be checked.
+     *  @param _account The account whose veJCD lock should be checked.
      *  @param _realBalance The amount of token _account has locked in the gauge.
      *  @return
      *   The account's boosted balance. Always lower than or equal to the
@@ -292,14 +292,14 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
         address _account,
         uint256 _realBalance
     ) internal view returns (uint256) {
-        uint256 veTotalSupply = IVotingYFI(VEYFI).totalSupply();
+        uint256 veTotalSupply = IVotingJCD(VEJCD).totalSupply();
         if (veTotalSupply == 0) {
             return _realBalance;
         }
         return
             Math.min(
                 ((_realBalance * BOOSTING_FACTOR) +
-                    (((totalSupply() * IVotingYFI(VEYFI).balanceOf(_account)) /
+                    (((totalSupply() * IVotingJCD(VEJCD).balanceOf(_account)) /
                         veTotalSupply) *
                         (BOOST_DENOMINATOR - BOOSTING_FACTOR))) /
                     BOOST_DENOMINATOR,
@@ -308,7 +308,7 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
     }
 
     /** @notice deposit vault tokens into the gauge
-     *  @dev a user without a veYFI should not lock.
+     *  @dev a user without a veJCD should not lock.
      *  @dev will deposit the min between user balance and user approval
      *  @dev This call updates claimable rewards
      *  @return amount of assets deposited
@@ -323,7 +323,7 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
     }
 
     /** @notice deposit vault tokens into the gauge
-     *  @dev a user without a veYFI should not lock.
+     *  @dev a user without a veJCD should not lock.
      *  @dev This call updates claimable rewards
      *  @param _assets of vault token
      *  @return amount  of assets deposited
@@ -392,7 +392,7 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
      *  @param _assets amount to withdraw
      *  @param _receiver account that will recieve the shares
      *  @param _owner shares will be taken from account
-     *  @param _claim claim veYFI and additional reward
+     *  @param _claim claim veJCD and additional reward
      *  @return amount of shares withdrawn
      */
     function withdraw(
@@ -421,7 +421,7 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
 
     /** @notice withdraw all vault tokens from gauge
      *   @dev This call updates claimable rewards
-     *   @param _claim claim veYFI and additional reward
+     *   @param _claim claim veJCD and additional reward
      *  @return amount of shares withdrawn
      */
     function withdraw(bool _claim) external returns (uint256) {
@@ -531,9 +531,9 @@ contract Gauge is BaseGauge, ERC20Upgradeable, IGauge {
         }
     }
 
-    function _transferVeYfiORewards(uint256 _penalty) internal {
-        IERC20(REWARD_TOKEN).approve(VE_YFI_POOL, _penalty);
-        IDYfiRewardPool(VE_YFI_POOL).burn(_penalty);
+    function _transferVeJcdORewards(uint256 _penalty) internal {
+        IERC20(REWARD_TOKEN).approve(VE_JCD_POOL, _penalty);
+        IDJcdRewardPool(VE_JCD_POOL).burn(_penalty);
     }
 
     function _protectedTokens(
